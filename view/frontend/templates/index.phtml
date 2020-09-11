@@ -1,0 +1,116 @@
+<form class="form search-criteria" action="/productsinrange/index/ajax" method="post" id="form-validate" enctype="multipart/form-data" data-hasrequired="&#x2A;&#x20;Required&#x20;Fields" autocomplete="off">
+    <fieldset class="fieldset">        
+        <div class="field field-name-low-price required">
+            <label class="label" for="low-price"><span>Low Price</span></label>
+            <div class="control">
+                <input type="text" id="low-price"
+                       name="low-price"
+                       title="Low Price"
+                       class="input-text required-entry validate-not-negative-number" data-validate="{required:true}">
+            </div>
+        </div>
+        <div class="field field-name-high-price required">
+            <label class="label" for="high-price"><span>High Price</span></label>
+            <div class="control">
+                <input type="text" id="high-price"
+                       name="high-price"
+                       title="High Price"
+                       class="input-text required-entry validate-not-negative-number" data-validate="{required:true}">
+            </div>
+        </div>
+        <div class="field field-name-sort-order required">
+            <label class="label" for="sort-order"><span>Sort Order</span></label>
+            <div class="control">
+                <input type="radio" class="radio required-entry" name="sort-order" data-validate="{'validate-one-required-by-name':true}" value="asc" checked><label for="sort-order">Ascending</label><br>
+                <input type="radio" class="radio required-entry" name="sort-order" data-validate="{'validate-one-required-by-name':true}" value="desc"><label for="sort-order">Descending</label>
+            </div>
+        </div>
+    </fieldset>
+    <div class="actions-toolbar">
+        <div class="primary">
+            <button type="submit" class="action save primary" title="Search"><span>Search</span></button>
+        </div>
+    </div>
+</form>
+
+<div class="table-wrapper">
+    <table class="data table" id="products-in-range">
+        <caption class="table-caption">Products in Range</caption>
+        <thead>
+            <tr>
+                <th scope="col" class="col thumbnail"></th>
+                <th scope="col" class="col sku">SKU</th>
+                <th scope="col" class="col type">Type</th>
+                <th scope="col" class="col name">Name</th>
+                <th scope="col" class="col quantity">Quantity</th>
+                <th scope="col" class="col price">Price</th>
+                <th scope="col" class="col actions">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<style>
+    form.search-criteria > fieldset { margin-bottom: 20px; width: 48% }
+    form.search-criteria > div.actions-toolbar { margin-bottom: 40px; }
+    div.custom-validation-error { display: none; }
+</style>
+
+<script type="text/javascript">
+    require([
+        "jquery",
+        "mage/mage"
+    ], function($) {
+        let form = $("#form-validate"); // also form.search-criteria
+
+        form.mage('validation'); // validation for non-empty, non-negative number
+        form.submit(function(event) {
+            event.preventDefault();
+            $("#products-in-range > tbody").empty(); // clear the table before loading next result set
+            $("div.custom-validation-error").remove(); // remove message box
+            
+            // Validate price filter inputs; override highPrice to 5 if lowPrice is 0
+            let lowPrice = parseInt($("input[name='low-price']").val());
+            let highPrice = parseInt($("input[name='high-price']").val());
+            if (highPrice > lowPrice && (lowPrice == 0 || highPrice <= lowPrice * 5)) {
+                if (lowPrice == 0) {
+                    highPrice = 5; $("input[name='high-price']").val(highPrice);
+                }
+                $.ajax({
+                    url: form.attr('action'),
+                    method: form.attr('method'),
+                    data: form.serialize(), // search criteria from form
+                    success: function (result) {
+                        let products = JSON.parse(result);
+                        $.each( products, function ( index, product ) {
+                            let price = parseInt(product.min_price).toFixed(2);
+                            let quantity = product.quantity ? parseInt(product.quantity).toFixed() : '–';
+                            let productRow = 
+                                `<tr>
+                                    <td><img width="250" src="/pub/media/catalog/product${product.thumbnail}" alt="${product.name}"></td>
+                                    <td>${product.sku}</td>
+                                    <td>${product.type_id}</td>
+                                    <td>${product.name}</td>
+                                    <td>${quantity}</td>
+                                    <td>$${price}</td>
+                                    <td><a target="_blank" href="/catalog/product/view/id/${product.entity_id}">View Product</a></td>
+                                </tr>`;
+                            $("#products-in-range > tbody").append(productRow);
+                        });
+                    },
+                    error: function(xhr) {
+                        let response = JSON.parse(xhr.responseText);
+                        form.prepend(`<div class="message error custom-validation-error"><span>${response.message}</span></div>`);
+                    }
+                });
+            } else {
+                form.prepend(
+                    `<div class="message info custom-validation-error">
+                        <span>High price cannot be less than or equal to the low price and cannot be greater than 5x the low price.</span>
+                    </div>`);
+                return false;
+            }
+        });
+    });
+</script>
